@@ -103,7 +103,7 @@ venv.bak/
 .mypy_cache/
 
 # misc stuff
-data/*
+# data/*
 models/*
 lsf.*
 *.npy
@@ -112,3 +112,4 @@ lsf.*
 scream/*
 small_norb/*
 cars/*
+*.json

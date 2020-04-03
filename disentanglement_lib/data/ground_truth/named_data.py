@@ -39,6 +39,8 @@ def get_named_ground_truth_data(name):
 
   if name == "dsprites_full":
     return dsprites.DSprites([1, 2, 3, 4, 5])
+  elif name == "dsprites_custom":
+    return dsprites.DSprites([3, 4, 5])
   elif name == "dsprites_noshape":
     return dsprites.DSprites([2, 3, 4, 5])
   elif name == "color_dsprites":
