@@ -67,6 +67,7 @@ class DSprites(ground_truth_data.GroundTruthData):
         self.factor_sizes)
     self.state_space = util.SplitDiscreteStateSpace(self.factor_sizes,
                                                     self.latent_factor_indices)
+    self.subset = None
 
   @property
   def num_factors(self):
@@ -82,7 +83,19 @@ class DSprites(ground_truth_data.GroundTruthData):
 
   def sample_factors(self, num, random_state):
     """Sample a batch of factors Y."""
-    return self.state_space.sample_latent_factors(num, random_state)
+    if self.subset is None:
+        factors = self.state_space.sample_latent_factors(num, random_state)
+    else:
+        factors = self.sample_factors_subset(num,random_state)
+
+
+    return factors
+
+  def sample_factors_subset(self, num, random_state):
+      """Sample factors Y from predefined factors list."""
+      idxs = np.random.randint(0, self.subset.shape[0], num)
+      factors = self.subset[idxs,1:]
+      return factors
 
   def sample_observations_from_factors(self, factors, random_state):
     return self.sample_observations_from_factors_no_color(factors, random_state)

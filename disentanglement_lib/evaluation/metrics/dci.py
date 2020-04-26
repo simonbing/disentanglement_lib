@@ -67,6 +67,9 @@ def compute_dci(ground_truth_data, representation_function, random_state,
   mus_test, ys_test = utils.generate_batch_factor_code(
       ground_truth_data, representation_function, num_test,
       random_state, batch_size)
+
+  ys_train, ys_test = remove_static_dim(ys_train, ys_test)
+
   scores = _compute_dci(mus_train, ys_train, mus_test, ys_test)
   return scores
 
@@ -135,3 +138,9 @@ def completeness(importance_matrix):
     importance_matrix = np.ones_like(importance_matrix)
   factor_importance = importance_matrix.sum(axis=0) / importance_matrix.sum()
   return np.sum(per_factor*factor_importance)
+
+def remove_static_dim(factors_train, factors_test):
+    """Check if any latent factors never change and remove corresponding dim"""
+    factors_all = np.concatenate((factors_train, factors_test), axis=1)
+    mask = ~np.all(factors_all == factors_all[0,:], axis=1)
+    return factors_train[mask,:], factors_test[mask,:]

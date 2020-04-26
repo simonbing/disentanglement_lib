@@ -24,6 +24,8 @@ from disentanglement_lib.data.ground_truth import mpi3d
 from disentanglement_lib.data.ground_truth import norb
 from disentanglement_lib.data.ground_truth import shapes3d
 import gin.tf
+import os
+import numpy as np
 
 
 @gin.configurable("dataset")
@@ -65,3 +67,20 @@ def get_named_ground_truth_data(name):
     return dummy_data.DummyData()
   else:
     raise ValueError("Invalid data set name.")
+
+@gin.configurable("subset")
+def get_named_subset(name):
+    """
+    Returns subset of latent factors to explicitly be considered.
+    """
+    if name == "":
+        return None
+    elif name == "sin_order_ss":
+        subset_path = os.path.join(os.environ.get("DISENTANGLEMENT_LIB_DATA", "."),
+                                   "dsprites","factors","factors_sin_order_ss_5000.npy")
+        subset = np.load(subset_path)
+        subset_shape = subset.shape
+        subset = np.reshape(np.transpose(subset, (0,2,1)), (subset_shape[0]*subset_shape[2],subset_shape[1]))
+        return subset
+    else:
+        raise ValueError("Invalid subset name.")

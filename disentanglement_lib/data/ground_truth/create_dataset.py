@@ -10,6 +10,9 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import numpy as np
 import dsprites
 
+# Global random seed
+np.random.seed(42)
+
 def create_factors(inits, periods, length):
     """
     Creates latent factor tensor to sample from.
@@ -35,20 +38,33 @@ def create_factors(inits, periods, length):
 
     return factors
 
-def sample_inits(N, flags):
+def sample_inits(N):
     """
     Samples initial values of timeseries from state space of latent factors.
 
     Args:
         N:  Number of samples to take. (N_max = 737280)
-        flags: List of strings of latent factors to sample
     """
     inits = np.zeros([N, 6], dtype=int)
+    # Sample from entire latent space
+    N_max = 737280
+    # rand_idxs = np.random.choice(N_max, N, replace=False)
+    # inits_idxs = np.unravel_index(rand_idxs, (1,3,6,40,32,32))
 
+    # Choose inits from first N in latent space. Uncomment to apply.
     inits_idxs = np.unravel_index(range(N), (1,3,6,40,32,32))
 
     for i in range(6):
         inits[:,i] = inits_idxs[i]
+
+    # Additionally sample scale and shape. Uncomment to apply.
+    shapes = np.random.choice((0,1,2), N)
+    scales = np.random.choice((0,1,2,3,4,5), N)
+    inits[:,1] = shapes
+    inits[:,2] = scales
+
+    # Hardcoded: remove shape, scale variation. Uncomment to apply.
+    # inits[:,0:3] = 0
 
     return inits
 
@@ -67,7 +83,7 @@ def create_input(N, periods, length):
     random_seed = 42
     random_state = np.random.RandomState(random_seed)
 
-    inits = sample_inits(N, flags=None)
+    inits = sample_inits(N)
 
     input = np.zeros([N, length, 64*64])
 
@@ -75,33 +91,72 @@ def create_input(N, periods, length):
 
     for i in range(N):
         factors = create_factors(inits[i,:], periods, length)
+        # print('FACTORS SHAPE {}'.format(factors.shape))
         all_factors[i,:,:] = factors.transpose()
         dataset = np.squeeze(dsp.sample_observations_from_factors_no_color(factors=factors, random_state=random_state))
+        # print('DATASET SHAPE {}'.format(dataset.shape))
         dataset = dataset.reshape(dataset.shape[0], 64*64)
+        # print('DATASET RESHAPE SHAPE {}'.format(dataset.shape))
         input[i,:,:] = dataset
 
     print(all_factors.shape)
 
     return input, all_factors
 
+def input_from_factors(factors):
+    """
+    Creates input dataset from array of latent features.
+
+    Args:
+        factors:    [N, length, n_factors] nparray
+
+    Returns:
+        input:      [N, length, 64*64] nparray
+    """
+    dsp = dsprites.DSprites()
+    random_seed = 42
+    random_state = np.random.RandomState(random_seed)
+
+    N = factors.shape[0]
+    length = factors.shape[2]
+    print(length)
+
+    input = np.zeros([N, length, 64*64])
+
+    for i in range(N):
+        factors_single = factors[i,:,:].transpose()
+        print('FACTORS SHAPE {}'.format(factors_single.shape))
+        sample_single = np.squeeze(dsp.sample_observations_from_factors_no_color(factors=factors_single, random_state=random_state))
+        sample_single = sample_single.reshape(sample_single.shape[0], 64*64)
+        input[i,:,:] = sample_single
+
+    return input
+
 def main():
 
     periods = np.array([0, 0, 0, 0.5, 1, 2]) # Should be integer multiples of 0.5
-    inits = np.array([0, 0, 0, 0, 0, 0]) # Make sure these are in range amplitudes
     length = 10
 
+    # factors_gp_path = 'factors_gp_5000.npy'
+    # factors_gp = np.load(factors_gp_path)
+    # factors_gp_full_init_path = 'factors_gp_full_init_5000.npy'
+    # factors_gp_full_init = np.load(factors_gp_full_init_path)
+
     input, all_factors = create_input(5000, periods, length)
+
+    # input = input_from_factors(factors_gp_full_init)
     print("Dataset shape: ", input.shape)
 
-    save_input = False
+    input = input.astype('float32')
+
+    save_input = True
     save_factors = True
 
     if save_input:
-        filename_input = 'dsprites_5000'
+        filename_input = 'dsprites_sin_order_ss_5000'
         np.savez(filename_input, x_train_full=input, x_train_miss=input, m_train_miss=np.zeros_like(input), x_test_full=[], x_test_miss=[], m_test_miss=[])
-        # np.save(filename, dataset)
     if save_factors:
-        filename_factors = 'factors_5000'
+        filename_factors = 'factors_sin_order_ss_5000'
         np.save(filename_factors, all_factors)
 
 

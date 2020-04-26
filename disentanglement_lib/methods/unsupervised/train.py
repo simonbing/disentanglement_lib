@@ -98,6 +98,12 @@ def train(model_dir,
 
   # Obtain the dataset.
   dataset = named_data.get_named_ground_truth_data()
+  # Obtain subset, if defined.
+  try:
+      dataset.subset = named_data.get_named_subset()
+  except ValueError:
+      # Do nothing
+      dataset.subset = None
 
   # We create a TPUEstimator based on the provided model. This is primarily so
   # that we could switch to TPU training in the future. For now, we train
