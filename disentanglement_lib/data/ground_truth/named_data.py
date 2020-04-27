@@ -75,6 +75,13 @@ def get_named_subset(name):
     """
     if name == "":
         return None
+    elif name == "sin":
+        subset_path = os.path.join(os.environ.get("DISENTANGLEMENT_LIB_DATA", "."),
+                                   "dsprites","factors","factors_5000.npy")
+        subset = np.load(subset_path)
+        subset_shape = subset.shape
+        subset = np.reshape(np.transpose(subset, (0,2,1)), (subset_shape[0]*subset_shape[2],subset_shape[1]))
+        return subset
     elif name == "sin_order_ss":
         subset_path = os.path.join(os.environ.get("DISENTANGLEMENT_LIB_DATA", "."),
                                    "dsprites","factors","factors_sin_order_ss_5000.npy")
