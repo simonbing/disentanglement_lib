@@ -166,7 +166,7 @@ def main():
 
     # input = input.astype('float32')
 
-    save_input = False
+    save_input = True
     save_factors = False
 
     if save_input:
