@@ -171,7 +171,7 @@ def main():
 
     if save_input:
         filename_input = 'dsprites_sin_rand_100k'
-        np.savez('/scratch/data/dsprites_sin_rand_100k', x_train_full=input_train, x_train_miss=input_train,
+        np.savez('dsprites_sin_rand_100k', x_train_full=input_train, x_train_miss=input_train,
                  m_train_miss=np.zeros_like(input_train), x_test_full=input_test,
                  x_test_miss=input_test, m_test_miss=np.zeros_like(input_test))
     if save_factors:
