@@ -48,20 +48,20 @@ def sample_inits(N):
     inits = np.zeros([N, 6], dtype=int)
     # Sample from entire latent space
     N_max = 737280
-    # rand_idxs = np.random.choice(N_max, N, replace=False)
-    # inits_idxs = np.unravel_index(rand_idxs, (1,3,6,40,32,32))
+    rand_idxs = np.random.choice(N_max, N, replace=False)
+    inits_idxs = np.unravel_index(rand_idxs, (1,3,6,40,32,32))
 
     # Choose inits from first N in latent space. Uncomment to apply.
-    inits_idxs = np.unravel_index(range(N), (1,3,6,40,32,32))
+    # inits_idxs = np.unravel_index(range(N), (1,3,6,40,32,32))
 
     for i in range(6):
         inits[:,i] = inits_idxs[i]
 
     # Additionally sample scale and shape. Uncomment to apply.
-    shapes = np.random.choice((0,1,2), N)
-    scales = np.random.choice((0,1,2,3,4,5), N)
-    inits[:,1] = shapes
-    inits[:,2] = scales
+    # shapes = np.random.choice((0,1,2), N)
+    # scales = np.random.choice((0,1,2,3,4,5), N)
+    # inits[:,1] = shapes
+    # inits[:,2] = scales
 
     # Hardcoded: remove shape, scale variation. Uncomment to apply.
     # inits[:,0:3] = 0
@@ -101,7 +101,7 @@ def create_input(N, periods, length):
 
     print(all_factors.shape)
 
-    return input, all_factors
+    return input.astype('float32'), all_factors
 
 def input_from_factors(factors):
     """
@@ -125,12 +125,27 @@ def input_from_factors(factors):
 
     for i in range(N):
         factors_single = factors[i,:,:].transpose()
-        print('FACTORS SHAPE {}'.format(factors_single.shape))
+        # print('FACTORS SHAPE {}'.format(factors_single.shape))
         sample_single = np.squeeze(dsp.sample_observations_from_factors_no_color(factors=factors_single, random_state=random_state))
         sample_single = sample_single.reshape(sample_single.shape[0], 64*64)
         input[i,:,:] = sample_single
 
-    return input
+    return input.astype('float32')
+
+def split_train_test(input, factors, ratio):
+    """
+    Splits fataset and factors into explicit train and test sets.
+    """
+    assert len(input) == len(factors)
+
+    N = len(input)
+    input_train = input[:int(ratio*N),:,:]
+    input_test = input[int(ratio*N):,:,:]
+
+    factors_train = factors[:int(ratio*N),:,:]
+    factors_test = factors[int(ratio*N):,:,:]
+
+    return input_train, input_test, factors_train, factors_test
 
 def main():
 
@@ -142,19 +157,23 @@ def main():
     # factors_gp_full_init_path = 'factors_gp_full_init_5000.npy'
     # factors_gp_full_init = np.load(factors_gp_full_init_path)
 
-    input, all_factors = create_input(5000, periods, length)
+    input, all_factors = create_input(100000, periods, length)
+
+    input_train, input_test, factors_train, factors_test = split_train_test(input, all_factors, 0.8)
 
     # input = input_from_factors(factors_gp_full_init)
     print("Dataset shape: ", input.shape)
 
-    input = input.astype('float32')
+    # input = input.astype('float32')
 
-    save_input = True
-    save_factors = True
+    save_input = False
+    save_factors = False
 
     if save_input:
-        filename_input = 'dsprites_sin_order_ss_5000'
-        np.savez(filename_input, x_train_full=input, x_train_miss=input, m_train_miss=np.zeros_like(input), x_test_full=[], x_test_miss=[], m_test_miss=[])
+        filename_input = 'dsprites_sin_rand_100k'
+        np.savez('/scratch/data/'.format(filename_input), x_train_full=input_train, x_train_miss=input_train,
+                 m_train_miss=np.zeros_like(input_train), x_test_full=input_test,
+                 x_test_miss=input_test, m_test_miss=np.zeros_like(input_test))
     if save_factors:
         filename_factors = 'factors_sin_order_ss_5000'
         np.save(filename_factors, all_factors)
