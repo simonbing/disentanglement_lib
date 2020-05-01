@@ -157,25 +157,26 @@ def main():
     # factors_gp_full_init_path = 'factors_gp_full_init_5000.npy'
     # factors_gp_full_init = np.load(factors_gp_full_init_path)
 
-    input, all_factors = create_input(100000, periods, length)
+    input, all_factors = create_input(105000, periods, length)
 
-    input_train, input_test, factors_train, factors_test = split_train_test(input, all_factors, 0.8)
+    input_train, input_test, factors_train, factors_test = split_train_test(input, all_factors, 100/105)
 
     # input = input_from_factors(factors_gp_full_init)
-    print("Dataset shape: ", input.shape)
+    print("Train set shape: ", input_train.shape)
+    print("Test set shape: ", input_test.shape)
 
     # input = input.astype('float32')
 
     save_input = True
-    save_factors = False
+    save_factors = True
 
     if save_input:
-        filename_input = 'dsprites_sin_rand_100k'
-        np.savez('dsprites_sin_rand_100k', x_train_full=input_train, x_train_miss=input_train,
+        filename_input = 'dsprites_100k_5k'
+        np.savez('dsprites_100k_5k', x_train_full=input_train, x_train_miss=input_train,
                  m_train_miss=np.zeros_like(input_train), x_test_full=input_test,
                  x_test_miss=input_test, m_test_miss=np.zeros_like(input_test))
     if save_factors:
-        filename_factors = 'factors_sin_order_ss_5000'
+        filename_factors = 'factors_dsprites_110k_5k'
         np.save(filename_factors, all_factors)
 
 
