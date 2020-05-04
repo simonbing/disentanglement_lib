@@ -167,7 +167,7 @@ def main():
 
     # input = input.astype('float32')
 
-    save_input = True
+    save_input = False
     save_factors = True
 
     if save_input:
@@ -176,8 +176,9 @@ def main():
                  m_train_miss=np.zeros_like(input_train), x_test_full=input_test,
                  x_test_miss=input_test, m_test_miss=np.zeros_like(input_test))
     if save_factors:
-        filename_factors = 'factors_dsprites_110k_5k'
-        np.save(filename_factors, all_factors)
+        filename_factors = 'factors_dsprites_100k_5k'
+        np.savez('factors_100k_5k', factors_train=factors_train, factors_test=factors_test)
+        # np.save(filename_factors, all_factors)
 
 
 if __name__ == '__main__':
