@@ -200,13 +200,6 @@ class AdaGVAE(BaseVAE):
     kl_loss = tf.add(kl_loss1, kl_loss2, name="kl_loss")
     regularizer = self.regularizer(kl_loss1, kl_loss2, z_mean, z_logvar, z_sampled_all)
     loss = tf.add(reconstruction_loss, regularizer, name="loss")
-    # z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
-    # reconstructions = self.decode(z_sampled, data_shape, is_training)
-    # per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
-    # reconstruction_loss = tf.reduce_mean(per_sample_loss)
-    # kl_loss = compute_gaussian_kl(z_mean, z_logvar)
-    # regularizer = self.regularizer(kl_loss, z_mean, z_logvar, z_sampled)
-    # loss = tf.add(reconstruction_loss, regularizer, name="loss")
     if mode == tf.estimator.ModeKeys.TRAIN:
       optimizer = optimizers.make_vae_optimizer()
       update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
