@@ -121,6 +121,14 @@ def compute_gaussian_kl(z_mean, z_logvar):
           tf.square(z_mean) + tf.exp(z_logvar) - z_logvar - 1, [1]),
       name="kl_loss")
 
+def compute_kl(z_mean1, z_logvar1, z_mean2, z_lagvar2):
+    """Compute KL divergence between two Gaussians.
+       Returns:
+             kl: [batch_size, latent_dim] tensor of dimension wise KL divergences,
+             per sample.
+    """
+    return 0.5 * (z_lagvar2 - z_logvar1 + (tf.exp(z_logvar1) - tf.square(z_mean1 - z_mean2))/tf.exp(z_lagvar2) - 1)
+
 
 def make_metric_fn(*names):
   """Utility function to report tf.metrics in model functions."""
@@ -154,6 +162,127 @@ class BetaVAE(BaseVAE):
     del z_mean, z_logvar, z_sampled
     return self.beta * kl_loss
 
+@gin.configurable("adagvae")
+class AdaGVAE(BaseVAE):
+  """AdaGVAE model."""
+
+  def __init__(self, beta=gin.REQUIRED):
+    """Creates an Ada-GVAE model.
+
+    Implementing Eq. 6 of "Weakly-Supervised Disentanglement Without Compromises"
+    (https://arxiv.org/abs/2002.02886).
+
+    Args:
+      beta: Hyperparameter for the regularizer.
+
+    Returns:
+      model_fn: Model function for TPUEstimator.
+    """
+    self.beta = beta
+
+  def model_fn(self, features, labels, mode, params):
+    """TPUEstimator compatible model function."""
+    del labels
+    is_training = (mode == tf.estimator.ModeKeys.TRAIN)
+    data_shape = features.get_shape().as_list()[1:]
+    z_mean, z_logvar = self.gaussian_encoder(features, is_training=is_training)
+    z_mean1, z_mean2, z_logvar1, z_logvar2, n_half = self.new_mean_var(z_mean,
+                                                                       z_logvar)
+    z_sampled1 = self.sample_from_latent_distribution(z_mean1, z_logvar1)
+    z_sampled2 = self.sample_from_latent_distribution(z_mean2, z_logvar2)
+    z_sampled_all = tf.concat((z_sampled1, z_sampled2), axis=0)
+    reconstructions_all = self.decode(z_sampled_all, data_shape, is_training)
+    per_sample_loss_all = losses.make_reconstruction_loss(features,
+                                                           reconstructions_all)
+    reconstruction_loss = tf.reduce_mean(per_sample_loss_all)
+    kl_loss1 = compute_gaussian_kl(z_mean1, z_logvar1)
+    kl_loss2 = compute_gaussian_kl(z_mean2, z_logvar2)
+    kl_loss = tf.add(kl_loss1, kl_loss2, name="kl_loss")
+    regularizer = self.regularizer(kl_loss1, kl_loss2, z_mean, z_logvar, z_sampled_all)
+    loss = tf.add(reconstruction_loss, regularizer, name="loss")
+    # z_sampled = self.sample_from_latent_distribution(z_mean, z_logvar)
+    # reconstructions = self.decode(z_sampled, data_shape, is_training)
+    # per_sample_loss = losses.make_reconstruction_loss(features, reconstructions)
+    # reconstruction_loss = tf.reduce_mean(per_sample_loss)
+    # kl_loss = compute_gaussian_kl(z_mean, z_logvar)
+    # regularizer = self.regularizer(kl_loss, z_mean, z_logvar, z_sampled)
+    # loss = tf.add(reconstruction_loss, regularizer, name="loss")
+    if mode == tf.estimator.ModeKeys.TRAIN:
+      optimizer = optimizers.make_vae_optimizer()
+      update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+      train_op = optimizer.minimize(
+          loss=loss, global_step=tf.train.get_global_step())
+      train_op = tf.group([train_op, update_ops])
+      tf.summary.scalar("reconstruction_loss", reconstruction_loss)
+
+      logging_hook = tf.train.LoggingTensorHook({
+          "loss": loss,
+          "reconstruction_loss": reconstruction_loss
+      },
+                                                every_n_iter=100)
+      return tf.contrib.tpu.TPUEstimatorSpec(
+          mode=mode,
+          loss=loss,
+          train_op=train_op,
+          training_hooks=[logging_hook])
+    elif mode == tf.estimator.ModeKeys.EVAL:
+      return tf.contrib.tpu.TPUEstimatorSpec(
+          mode=mode,
+          loss=loss,
+          eval_metrics=(make_metric_fn("reconstruction_loss",
+                                       "regularizer", "kl_loss"),
+                        [reconstruction_loss, regularizer, kl_loss]))
+    else:
+      raise NotImplementedError("Eval mode not supported.")
+
+  def regularizer(self, kl_loss1, kl_loss2, z_mean, z_logvar, z_sampled):
+    del z_mean, z_logvar, z_sampled
+    kl_loss = kl_loss1 + kl_loss2
+    return self.beta * kl_loss
+
+  def new_mean_var(self, z_mean, z_logvar):
+      """
+      Calculates averaged mean representation of images.
+
+      Args:
+          z_mean: mean representation of all samples
+          z_logvar: logvar of all samples
+
+      Returns:
+          z_mean1, z_mean2: pairs of new mean
+          z_logvar1, z_logvar2: pairs of logvars
+          n_half
+      """
+      # Get batch size, split into pairs. TODO: smarter pair sampling
+      n_samples = z_mean.get_shape().as_list()[0]
+      assert ~(n_samples % 2)
+      n_half = n_samples // 2
+
+      z_mean1 = z_mean[:n_half, :]
+      z_logvar1 = z_logvar[:n_half, :]
+      z_mean2 = z_mean[n_half:, :]
+      z_logvar2 = z_logvar[n_half:, :]
+
+      # Compute pairwise KL divergence, across all latent dimensions
+      kl = compute_kl(z_mean1, z_logvar1, z_mean2, z_logvar2)
+
+      # Binned KL divergence TODO: best way to vectorize this?
+      def f(sample):
+          return tf.histogram_fixed_width_bins(
+              sample, [tf.reduce_min(sample), tf.reduce_max(sample)], nbins=2)
+      binned_kl = tf.map_fn(f, kl, dtype=tf.dtypes.int32)
+      mask = tf.equal(binned_kl, 1)
+
+      # Get averaged mean and logvar
+      new_z_mean = 0.5 * (z_mean1 + z_mean2)
+      new_z_logvar = tf.log(0.5 * (tf.exp(z_logvar1) + tf.exp(z_logvar2)))
+
+      new_z_mean1 = tf.where(mask, z_mean1, new_z_mean)
+      new_z_mean2 = tf.where(mask, z_mean2, new_z_mean)
+      new_z_logvar1 = tf.where(mask, z_logvar1, new_z_logvar)
+      new_z_logvar2 = tf.where(mask, z_logvar2, new_z_logvar)
+
+      return new_z_mean1, new_z_mean2, new_z_logvar1, new_z_logvar2, n_half
 
 def anneal(c_max, step, iteration_threshold):
   """Anneal function for anneal_vae (https://arxiv.org/abs/1804.03599).
