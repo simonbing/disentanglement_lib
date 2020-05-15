@@ -125,14 +125,14 @@ def train(model_dir,
 
   # Do the actual training.
   try:
-      if model.samples_pair:
-          input_fn = _make_pair_input_fn(dataset, random_state.randint(2**32))
+      if model.sample_pair:
+          input_fn_train = _make_pair_input_fn(dataset, random_state.randint(2**32))
       else:
-          input_fn = _make_input_fn(dataset, random_state.randint(2**32))
+          input_fn_train = _make_input_fn(dataset, random_state.randint(2**32))
   except AttributeError:
-      input_fn = _make_input_fn(dataset, random_state.randint(2**32))
+      input_fn_train = _make_input_fn(dataset, random_state.randint(2**32))
   tpu_estimator.train(
-      input_fn=input_fn,
+      input_fn=input_fn_train,
       steps=training_steps)
 
   # Save model as a TFHub module.
@@ -145,9 +145,15 @@ def train(model_dir,
   # Save the results. The result dir will contain all the results and config
   # files that we copied along, as we progress in the pipeline. The idea is that
   # these files will be available for analysis at the end.
+  try:
+      if model.sample_pair:
+          input_fn_eval = _make_pair_input_fn(dataset, random_state.randint(2**32), num_batches=eval_steps)
+      else:
+          input_fn_eval = _make_input_fn(dataset, random_state.randint(2**32), num_batches=eval_steps)
+  except AttributeError:
+      input_fn_eval = _make_input_fn(dataset, random_state.randint(2**32), num_batches=eval_steps)
   results_dict = tpu_estimator.evaluate(
-      input_fn=_make_input_fn(
-          dataset, random_state.randint(2**32), num_batches=eval_steps))
+      input_fn=input_fn_eval)
   results_dir = os.path.join(model_dir, "results")
   results_dict["elapsed_time"] = time.time() - experiment_timer
   results.update_result_directory(results_dir, "train", results_dict)
@@ -177,8 +183,17 @@ def _make_pair_input_fn(ground_truth_data, seed, num_batches=None):
     """
     def load_dataset(params):
         """TPUEstimator compatible input function."""
-        dataset = util.tf_data_set_from_ground_truth_data(ground_truth_data,
-                                                          seed)
+        def pair_generator():
+            random_state = np.random.RandomState(seed)
+            while True:
+                yield ground_truth_data.sample_pair_observations(1, random_state, k=2)
+
+        dataset = tf.data.Dataset.from_generator(
+            pair_generator, tf.float32, output_shapes=[2]+ground_truth_data.observation_shape)
+
+
+        # dataset = util.tf_data_set_from_ground_truth_data(ground_truth_data,
+        #                                                   seed)
         batch_size = params["batch_size"]
         # We need to drop the remainder as otherwise we lose the batch size in the
         # tensor shape. This has no effect as our data set is infinite.

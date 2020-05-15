@@ -185,21 +185,37 @@ class AdaGVAE(BaseVAE):
     """TPUEstimator compatible model function."""
     del labels
     is_training = (mode == tf.estimator.ModeKeys.TRAIN)
-    data_shape = features.get_shape().as_list()[1:]
-    z_mean, z_logvar = self.gaussian_encoder(features, is_training=is_training)
-    z_mean1, z_mean2, z_logvar1, z_logvar2, n_half = self.new_mean_var(z_mean,
-                                                                       z_logvar)
-    z_sampled1 = self.sample_from_latent_distribution(z_mean1, z_logvar1)
-    z_sampled2 = self.sample_from_latent_distribution(z_mean2, z_logvar2)
-    z_sampled_all = tf.concat((z_sampled1, z_sampled2), axis=0)
-    reconstructions_all = self.decode(z_sampled_all, data_shape, is_training)
-    per_sample_loss_all = losses.make_reconstruction_loss(features,
-                                                           reconstructions_all)
-    reconstruction_loss = tf.reduce_mean(per_sample_loss_all)
-    kl_loss1 = compute_gaussian_kl(z_mean1, z_logvar1)
-    kl_loss2 = compute_gaussian_kl(z_mean2, z_logvar2)
+    features1 = features[:,0,...]
+    features2 = features[:,1,...]
+    data_shape = features.get_shape().as_list()[2:]
+
+    with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+        z_mean1, z_logvar1 = self.gaussian_encoder(features1,
+                                                   is_training=is_training)
+        z_mean2, z_logvar2 = self.gaussian_encoder(features2,
+                                                   is_training=is_training)
+
+    # z_mean, z_logvar = self.gaussian_encoder(features, is_training=is_training)
+    z_mean_new1, z_mean_new2, z_logvar_new1, z_logvar_new2 = self.new_mean_var(z_mean1, z_mean2, z_logvar1, z_logvar2)
+    z_sampled1 = self.sample_from_latent_distribution(z_mean_new1, z_logvar_new1)
+    z_sampled2 = self.sample_from_latent_distribution(z_mean_new2, z_logvar_new2)
+    # z_sampled_all = tf.concat((z_sampled1, z_sampled2), axis=0)
+    with tf.variable_scope(tf.get_variable_scope(), reuse=tf.AUTO_REUSE):
+        reconstruction1 = self.decode(z_sampled1, data_shape, is_training)
+        reconstruction2 = self.decode(z_sampled2, data_shape, is_training)
+    per_sample_loss1 = losses.make_reconstruction_loss(features1, reconstruction1)
+    per_sample_loss2 = losses.make_reconstruction_loss(features2, reconstruction2)
+    reconstruction_loss1 = tf.reduce_mean(per_sample_loss1)
+    reconstruction_loss2 = tf.reduce_mean(per_sample_loss2)
+    reconstruction_loss = tf.add(reconstruction_loss1, reconstruction_loss2)
+    # reconstructions_all = self.decode(z_sampled_all, data_shape, is_training)
+    # per_sample_loss_all = losses.make_reconstruction_loss(features,
+    #                                                        reconstructions_all)
+    # reconstruction_loss = tf.reduce_mean(per_sample_loss_all)
+    kl_loss1 = compute_gaussian_kl(z_mean_new1, z_logvar_new1)
+    kl_loss2 = compute_gaussian_kl(z_mean_new2, z_logvar_new2)
     kl_loss = tf.add(kl_loss1, kl_loss2, name="kl_loss")
-    regularizer = self.regularizer(kl_loss1, kl_loss2, z_mean, z_logvar, z_sampled_all)
+    regularizer = self.regularizer(kl_loss1, kl_loss2)
     loss = tf.add(reconstruction_loss, regularizer, name="loss")
     if mode == tf.estimator.ModeKeys.TRAIN:
       optimizer = optimizers.make_vae_optimizer()
@@ -229,12 +245,11 @@ class AdaGVAE(BaseVAE):
     else:
       raise NotImplementedError("Eval mode not supported.")
 
-  def regularizer(self, kl_loss1, kl_loss2, z_mean, z_logvar, z_sampled):
-    del z_mean, z_logvar, z_sampled
+  def regularizer(self, kl_loss1, kl_loss2):
     kl_loss = kl_loss1 + kl_loss2
     return self.beta * kl_loss
 
-  def new_mean_var(self, z_mean, z_logvar):
+  def new_mean_var(self, z_mean1, z_mean2, z_logvar1, z_logvar2):
       """
       Calculates averaged mean representation of images.
 
@@ -248,14 +263,14 @@ class AdaGVAE(BaseVAE):
           n_half
       """
       # Get batch size, split into pairs. TODO: smarter pair sampling
-      n_samples = z_mean.get_shape().as_list()[0]
-      assert ~(n_samples % 2)
-      n_half = n_samples // 2
-
-      z_mean1 = z_mean[:n_half, :]
-      z_logvar1 = z_logvar[:n_half, :]
-      z_mean2 = z_mean[n_half:, :]
-      z_logvar2 = z_logvar[n_half:, :]
+      # n_samples = z_mean.get_shape().as_list()[0]
+      # assert ~(n_samples % 2)
+      # n_half = n_samples // 2
+      #
+      # z_mean1 = z_mean[:n_half, :]
+      # z_logvar1 = z_logvar[:n_half, :]
+      # z_mean2 = z_mean[n_half:, :]
+      # z_logvar2 = z_logvar[n_half:, :]
 
       # Compute pairwise KL divergence, across all latent dimensions
       kl = compute_kl(z_mean1, z_logvar1, z_mean2, z_logvar2)
@@ -276,7 +291,7 @@ class AdaGVAE(BaseVAE):
       new_z_logvar1 = tf.where(mask, z_logvar1, new_z_logvar)
       new_z_logvar2 = tf.where(mask, z_logvar2, new_z_logvar)
 
-      return new_z_mean1, new_z_mean2, new_z_logvar1, new_z_logvar2, n_half
+      return new_z_mean1, new_z_mean2, new_z_logvar1, new_z_logvar2
 
 def anneal(c_max, step, iteration_threshold):
   """Anneal function for anneal_vae (https://arxiv.org/abs/1804.03599).
