@@ -84,6 +84,7 @@ def create_input(N, periods, length):
     random_state = np.random.RandomState(random_seed)
 
     inits = sample_inits(N)
+    print('Inits shape: {}'.format(inits.shape))
 
     input = np.zeros([N, length, 64*64])
 
@@ -157,7 +158,7 @@ def main():
     # factors_gp_full_init_path = 'factors_gp_full_init_5000.npy'
     # factors_gp_full_init = np.load(factors_gp_full_init_path)
 
-    input, all_factors = create_input(105000, periods, length)
+    input, all_factors = create_input(5000, periods, length)
 
     input_train, input_test, factors_train, factors_test = split_train_test(input, all_factors, 100/105)
 
@@ -168,7 +169,7 @@ def main():
     # input = input.astype('float32')
 
     save_input = False
-    save_factors = True
+    save_factors = False
 
     if save_input:
         filename_input = 'dsprites_100k_5k'

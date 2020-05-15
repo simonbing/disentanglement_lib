@@ -124,8 +124,15 @@ def train(model_dir,
   experiment_timer = time.time()
 
   # Do the actual training.
+  try:
+      if model.samples_pair:
+          input_fn = _make_pair_input_fn(dataset, random_state.randint(2**32))
+      else:
+          input_fn = _make_input_fn(dataset, random_state.randint(2**32))
+  except AttributeError:
+      input_fn = _make_input_fn(dataset, random_state.randint(2**32))
   tpu_estimator.train(
-      input_fn=_make_input_fn(dataset, random_state.randint(2**32)),
+      input_fn=input_fn,
       steps=training_steps)
 
   # Save model as a TFHub module.
@@ -150,7 +157,7 @@ def _make_input_fn(ground_truth_data, seed, num_batches=None):
   """Creates an input function for the experiments."""
 
   def load_dataset(params):
-    """TPUEstimator compatible input fuction."""
+    """TPUEstimator compatible input function."""
     dataset = util.tf_data_set_from_ground_truth_data(ground_truth_data, seed)
     batch_size = params["batch_size"]
     # We need to drop the remainder as otherwise we lose the batch size in the
@@ -161,3 +168,23 @@ def _make_input_fn(ground_truth_data, seed, num_batches=None):
     return dataset.make_one_shot_iterator().get_next()
 
   return load_dataset
+
+
+def _make_pair_input_fn(ground_truth_data, seed, num_batches=None):
+    """
+    Creates an input function that returns paired samples for the experiments.
+    Primarily for AdaGVAE
+    """
+    def load_dataset(params):
+        """TPUEstimator compatible input function."""
+        dataset = util.tf_data_set_from_ground_truth_data(ground_truth_data,
+                                                          seed)
+        batch_size = params["batch_size"]
+        # We need to drop the remainder as otherwise we lose the batch size in the
+        # tensor shape. This has no effect as our data set is infinite.
+        dataset = dataset.batch(batch_size, drop_remainder=True)
+        if num_batches is not None:
+            dataset = dataset.take(num_batches)
+        return dataset.make_one_shot_iterator().get_next()
+
+    return load_dataset

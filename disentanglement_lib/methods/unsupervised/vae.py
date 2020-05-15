@@ -179,6 +179,7 @@ class AdaGVAE(BaseVAE):
       model_fn: Model function for TPUEstimator.
     """
     self.beta = beta
+    self.sample_pair = True
 
   def model_fn(self, features, labels, mode, params):
     """TPUEstimator compatible model function."""
