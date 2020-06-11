@@ -102,10 +102,10 @@ class DSprites(ground_truth_data.GroundTruthData):
 
   def sample_observations_from_factors_no_color(self, factors, random_state):
     """Sample a batch of observations X given a batch of factors Y."""
-    print('SAMPLING OBSERVATION')
+    # print('SAMPLING OBSERVATION')
     all_factors = self.state_space.sample_all_factors(factors, random_state)
     indices = np.array(np.dot(all_factors, self.factor_bases), dtype=np.int64)
-    print(np.expand_dims(self.images[indices].astype(np.float32), axis=3).shape)
+    # print(np.expand_dims(self.images[indices].astype(np.float32), axis=3).shape)
     # return np.concatenate((np.expand_dims(self.images[indices].astype(np.float32), axis=3),np.expand_dims(self.images[indices].astype(np.float32), axis=3)))
     return np.expand_dims(self.images[indices].astype(np.float32), axis=3)
 
