@@ -121,13 +121,13 @@ def compute_gaussian_kl(z_mean, z_logvar):
           tf.square(z_mean) + tf.exp(z_logvar) - z_logvar - 1, [1]),
       name="kl_loss")
 
-def compute_kl(z_mean1, z_logvar1, z_mean2, z_lagvar2):
+def compute_kl(z_mean1, z_logvar1, z_mean2, z_logvar2):
     """Compute KL divergence between two Gaussians.
        Returns:
              kl: [batch_size, latent_dim] tensor of dimension wise KL divergences,
              per sample.
     """
-    return 0.5 * (z_lagvar2 - z_logvar1 + (tf.exp(z_logvar1) - tf.square(z_mean1 - z_mean2))/tf.exp(z_lagvar2) - 1)
+    return 0.5 * (z_logvar2 - z_logvar1 + (tf.exp(z_logvar1) - tf.square(z_mean1 - z_mean2))/tf.exp(z_logvar2) - 1)
 
 
 def make_metric_fn(*names):
