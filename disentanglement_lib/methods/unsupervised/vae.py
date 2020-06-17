@@ -127,7 +127,7 @@ def compute_kl(z_mean1, z_logvar1, z_mean2, z_logvar2):
              kl: [batch_size, latent_dim] tensor of dimension wise KL divergences,
              per sample.
     """
-    return 0.5 * (z_logvar2 - z_logvar1 + (tf.exp(z_logvar1) - tf.square(z_mean1 - z_mean2))/tf.exp(z_logvar2) - 1)
+    return 0.5 * (z_logvar2 - z_logvar1 + (tf.exp(z_logvar1) + tf.square(z_mean1 - z_mean2))/tf.exp(z_logvar2) - 1)
 
 
 def make_metric_fn(*names):
