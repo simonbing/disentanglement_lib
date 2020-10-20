@@ -10,10 +10,20 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 import numpy as np
 import dsprites
 
-# Global random seed
-np.random.seed(42)
+from absl import app
+from absl import flags
 
-def create_factors(inits, periods, length):
+FLAGS = flags.FLAGS
+
+flags.DEFINE_integer('seed', 42, 'Random seed')
+flags.DEFINE_bool('save_factors', False, 'Save underlying ground truth factors')
+flags.DEFINE_bool('save_data', False, 'Save actual time series data set')
+flags.DEFINE_integer('num_samples', 5000, 'Total number of samples to generate')
+
+# Global random seed
+# np.random.seed(FLAGS.seed)
+
+def sample_factors(inits, periods, length):
     """
     Creates latent factor tensor to sample from.
 
@@ -25,18 +35,21 @@ def create_factors(inits, periods, length):
         factors:[NxM] tensor of latent factors
     """
 
-    factors = np.zeros([length, periods.size], dtype=int)
+    factors = np.zeros([inits.shape[0], length, periods.size], dtype=int)
     amplitudes = [0, 2, 5, 39, 31, 31] # Hardcoded for DSprites for now
     xaxis = np.arange(0,length,1)
 
-    for i in range(0,periods.size):
-        if amplitudes[i]:
-            c = np.arccos(1 - 2*inits[i]/amplitudes[i])
+    for j in range(0,periods.size):
+        if amplitudes[j]:
+            c = np.arccos(1 - 2*inits[:,j]/amplitudes[j])
         else:
-            c = 0
-        factors[:,i] = np.rint(-0.5*amplitudes[i] * np.cos(periods[i] * xaxis * 2*np.pi/length + c) + 0.5*amplitudes[i])
+            c = np.zeros(inits.shape[0])
 
-    return factors
+        factors[:,:,j] = np.rint(-0.5*amplitudes[j] * np.cos(
+                       np.tile(periods[j] * xaxis * 2*np.pi/length, (inits.shape[0],1))
+                       + np.transpose(np.tile(c, (length,1)))) + 0.5*amplitudes[j])
+
+    return np.transpose(factors, (0, 2, 1))
 
 def sample_inits(N):
     """
@@ -69,12 +82,12 @@ def sample_inits(N):
     return inits
 
 
-def create_input(N, periods, length):
+def create_data(N, periods, length):
     """
-    Generates N dimensional input for GP-VAE model.
+    Generates data for GP-VAE model.
 
     Args:
-        N:  Dimensionality of input
+        N:  number of samples
         periods:  [M] periods of latent factors
         length: [N] length of resulting tensor
     """
@@ -86,33 +99,36 @@ def create_input(N, periods, length):
     inits = sample_inits(N)
     print('Inits shape: {}'.format(inits.shape))
 
-    input = np.zeros([N, length, 64*64])
+    # TEST
+    factors_test = sample_factors(inits, periods, length)
+
+    data = np.zeros([N, length, 64*64])
 
     all_factors = np.empty([N,6,length])
 
     for i in range(N):
-        factors = create_factors(inits[i,:], periods, length)
+        factors = sample_factors(inits[i,:], periods, length)
         # print('FACTORS SHAPE {}'.format(factors.shape))
         all_factors[i,:,:] = factors.transpose()
         dataset = np.squeeze(dsp.sample_observations_from_factors_no_color(factors=factors, random_state=random_state))
         # print('DATASET SHAPE {}'.format(dataset.shape))
         dataset = dataset.reshape(dataset.shape[0], 64*64)
         # print('DATASET RESHAPE SHAPE {}'.format(dataset.shape))
-        input[i,:,:] = dataset
+        data[i,:,:] = dataset
 
     print(all_factors.shape)
 
-    return input.astype('float32'), all_factors
+    return data.astype('float32'), all_factors
 
-def input_from_factors(factors):
+def data_from_factors(factors):
     """
-    Creates input dataset from array of latent features.
+    Creates data dataset from array of latent features.
 
     Args:
         factors:    [N, length, n_factors] nparray
 
     Returns:
-        input:      [N, length, 64*64] nparray
+        data:      [N, length, 64*64] nparray
     """
     dsp = dsprites.DSprites()
     random_seed = 42
@@ -122,65 +138,71 @@ def input_from_factors(factors):
     length = factors.shape[2]
     print(length)
 
-    input = np.zeros([N, length, 64*64])
+    data = np.zeros([N, length, 64*64])
 
     for i in range(N):
         factors_single = factors[i,:,:].transpose()
         # print('FACTORS SHAPE {}'.format(factors_single.shape))
         sample_single = np.squeeze(dsp.sample_observations_from_factors_no_color(factors=factors_single, random_state=random_state))
         sample_single = sample_single.reshape(sample_single.shape[0], 64*64)
-        input[i,:,:] = sample_single
+        data[i,:,:] = sample_single
 
-    return input.astype('float32')
+    return data.astype('float32')
 
-def split_train_test(input, factors, ratio):
+def split_train_test(data, factors, ratio):
     """
-    Splits fataset and factors into explicit train and test sets.
+    Splits dataset and factors into explicit train and test sets.
     """
-    assert len(input) == len(factors)
+    assert len(data) == len(factors)
 
-    N = len(input)
-    input_train = input[:int(ratio*N),:,:]
-    input_test = input[int(ratio*N):,:,:]
+    N = len(data)
+    data_train = data[:int(ratio*N),:,:]
+    data_test = data[int(ratio*N):,:,:]
 
     factors_train = factors[:int(ratio*N),:,:]
     factors_test = factors[int(ratio*N):,:,:]
 
-    return input_train, input_test, factors_train, factors_test
+    return data_train, data_test, factors_train, factors_test
 
-def main():
+def count_unique_factors(factors):
+    """
+    Counts number of unique factors of variation.
+    """
+    factors_shape = factors.shape
+    f_all = np.reshape(np.transpose(factors, (0, 2, 1)),
+                       (factors_shape[0] * factors_shape[2], factors_shape[1]))
+    f_all_flat = np.ravel_multi_index(np.transpose(f_all.astype(int)),
+                                      (1, 3, 6, 40, 32, 32), order='F')
+
+    return np.shape(np.unique(f_all_flat))
+
+def main(argv):
+    del argv  # Unused
 
     periods = np.array([0, 0, 0, 0.5, 1, 2]) # Should be integer multiples of 0.5
-    length = 10
+    length = 10 # Hardcoded for now
 
-    # factors_gp_path = 'factors_gp_5000.npy'
-    # factors_gp = np.load(factors_gp_path)
-    # factors_gp_full_init_path = 'factors_gp_full_init_5000.npy'
-    # factors_gp_full_init = np.load(factors_gp_full_init_path)
+    data, all_factors = create_data(FLAGS.num_samples, periods, length) # TODO: split this so we dont always create the data
+    unique_factors = count_unique_factors(all_factors)
+    print(F"Number of unique underlying factors: {unique_factors}")
 
-    input, all_factors = create_input(5000, periods, length)
+    data_train, data_test, factors_train, factors_test = split_train_test(data, all_factors, 100/105)
 
-    input_train, input_test, factors_train, factors_test = split_train_test(input, all_factors, 100/105)
+    # print("Train set shape: ", data_train.shape)
+    # print("Test set shape: ", data_test.shape)
 
-    # input = input_from_factors(factors_gp_full_init)
-    print("Train set shape: ", input_train.shape)
-    print("Test set shape: ", input_test.shape)
+    # data = data.astype('float32')
 
-    # input = input.astype('float32')
-
-    save_input = False
-    save_factors = False
-
-    if save_input:
-        filename_input = 'dsprites_100k_5k'
-        np.savez('dsprites_100k_5k', x_train_full=input_train, x_train_miss=input_train,
-                 m_train_miss=np.zeros_like(input_train), x_test_full=input_test,
-                 x_test_miss=input_test, m_test_miss=np.zeros_like(input_test))
-    if save_factors:
+    if FLAGS.save_data:
+        filename_data = 'dsprites_100k_5k'
+        np.savez('dsprites_100k_5k', x_train_full=data_train, x_train_miss=data_train,
+                 m_train_miss=np.zeros_like(data_train), x_test_full=data_test,
+                 x_test_miss=data_test, m_test_miss=np.zeros_like(data_test))
+    if FLAGS.save_factors:
         filename_factors = 'factors_dsprites_100k_5k'
         np.savez('factors_100k_5k', factors_train=factors_train, factors_test=factors_test)
         # np.save(filename_factors, all_factors)
 
 
 if __name__ == '__main__':
-    main()
+    app.run(main)
