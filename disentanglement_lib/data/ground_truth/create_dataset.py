@@ -17,8 +17,11 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_integer('seed', 42, 'Random seed')
 flags.DEFINE_bool('save_data', False, 'Save data set and ground truth factors')
-flags.DEFINE_integer('num_samples', 5000, 'Total number of samples to generate')
+flags.DEFINE_integer('num_timeseries', 100, 'Total number of time series to generate')
+flags.DEFINE_integer('length', 100, 'Time steps per time series')
 flags.DEFINE_enum('kernel', 'sinusoid', ['sinusoid', 'rbf'], 'Underlying dynamics of factors')
+flags.DEFINE_string('file_name', 'dsprites', 'Name for features')
+flags.DEFINE_string('factors_name', 'factors_dsprites', 'Name for factors')
 
 def sample_inits(N): # TODO: this is where static factor matching happens
     """
@@ -149,21 +152,21 @@ def main(argv):
     del argv  # Unused
 
     periods = np.array([0, 0, 0, 0.5, 1, 2]) # Should be integer multiples of 0.5
-    length = 10 # Hardcoded for now
+    length = FLAGS.length
 
-    data, all_factors = create_data(FLAGS.num_samples, periods, length)
+    data, all_factors = create_data(FLAGS.num_timeseries, periods, length)
     unique_factors = count_unique_factors(all_factors)
     print(F"Number of unique underlying factors: {unique_factors}")
 
     if FLAGS.save_data:
         data_train, data_test, factors_train, factors_test = split_train_test(
             data, np.transpose(all_factors, (0,2,1)), 100 / 105)
-        filename_data = 'dsprites_100k_5k'
-        np.savez('dsprites_100k_5k', x_train_full=data_train, x_train_miss=data_train,
+        filename_data = FLAGS.file_name
+        np.savez(filename_data, x_train_full=data_train, x_train_miss=data_train,
                  m_train_miss=np.zeros_like(data_train), x_test_full=data_test,
                  x_test_miss=data_test, m_test_miss=np.zeros_like(data_test))
-        filename_factors = 'factors_dsprites_100k_5k'
-        np.savez('factors_100k_5k', factors_train=factors_train,
+        filename_factors = FLAGS.factors_name
+        np.savez(filename_factors, factors_train=factors_train,
                  factors_test=factors_test)
 
 
