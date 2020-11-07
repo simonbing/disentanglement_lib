@@ -31,6 +31,7 @@ from six.moves import zip
 import tensorflow.compat.v1 as tf
 import gin.tf
 from tensorflow.contrib import tpu as contrib_tpu
+from tensorflow_estimator.python.estimator.tpu.tpu_estimator import TPUEstimatorSpec
 
 
 class BaseVAE(gaussian_encoder_model.GaussianEncoderModel):
@@ -231,13 +232,13 @@ class AdaGVAE(BaseVAE):
           "reconstruction_loss": reconstruction_loss
       },
                                                 every_n_iter=100)
-      return tf.contrib.tpu.TPUEstimatorSpec(
+      return TPUEstimatorSpec(
           mode=mode,
           loss=loss,
           train_op=train_op,
           training_hooks=[logging_hook])
     elif mode == tf.estimator.ModeKeys.EVAL:
-      return tf.contrib.tpu.TPUEstimatorSpec(
+      return TPUEstimatorSpec(
           mode=mode,
           loss=loss,
           eval_metrics=(make_metric_fn("reconstruction_loss",

@@ -18,8 +18,9 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer('seed', 42, 'Random seed')
 flags.DEFINE_bool('save_data', False, 'Save data set and ground truth factors')
 flags.DEFINE_integer('num_samples', 5000, 'Total number of samples to generate')
+flags.DEFINE_enum('kernel', 'sinusoid', ['sinusoid', 'rbf'], 'Underlying dynamics of factors')
 
-def sample_inits(N):
+def sample_inits(N): # TODO: this is where static factor matching happens
     """
     Samples initial values of timeseries from state space of latent factors.
 
@@ -68,15 +69,21 @@ def sample_factors(inits, periods, length):
     amplitudes = [0, 2, 5, 39, 31, 31] # Hardcoded for DSprites for now
     xaxis = np.arange(0,length,1)
 
-    for j in range(0,periods.size):
-        if amplitudes[j]:
-            c = np.arccos(1 - 2*inits[:,j]/amplitudes[j])
-        else:
-            c = np.zeros(inits.shape[0])
 
-        factors[:,:,j] = np.rint(-0.5*amplitudes[j] * np.cos(
-                       np.tile(periods[j] * xaxis * 2*np.pi/length, (inits.shape[0],1))
-                       + np.transpose(np.tile(c, (length,1)))) + 0.5*amplitudes[j])
+    if FLAGS.kernel == 'sinusoid':
+        for j in range(0,periods.size):
+            if amplitudes[j]:
+                c = np.arccos(1 - 2*inits[:,j]/amplitudes[j])
+            else:
+                c = np.zeros(inits.shape[0])
+
+            factors[:,:,j] = np.rint(-0.5*amplitudes[j] * np.cos(
+                           np.tile(periods[j] * xaxis * 2*np.pi/length, (inits.shape[0],1))
+                           + np.transpose(np.tile(c, (length,1)))) + 0.5*amplitudes[j])
+    elif FLAGS.kernel == 'rbf':
+        pass # TODO: implement
+    else:
+        raise ValueError("Kernel must be one of ['sinusoid', 'rbf']")
 
     return factors
 
@@ -111,34 +118,6 @@ def create_data(N, periods, length):
         return None, factors
 
 
-def data_from_factors(factors): # TODO: UNUSED?
-    """
-    Creates data dataset from array of latent features.
-
-    Args:
-        factors:    [N, length, n_factors] nparray
-
-    Returns:
-        data:      [N, length, 64*64] nparray
-    """
-    dsp = dsprites.DSprites()
-    random_seed = 42
-    random_state = np.random.RandomState(random_seed)
-
-    N = factors.shape[0]
-    length = factors.shape[2]
-    print(length)
-
-    data = np.zeros([N, length, 64*64])
-
-    for i in range(N):
-        factors_single = factors[i,:,:].transpose()
-        sample_single = np.squeeze(dsp.sample_observations_from_factors_no_color(factors=factors_single, random_state=random_state))
-        sample_single = sample_single.reshape(sample_single.shape[0], 64*64)
-        data[i,:,:] = sample_single
-
-    return data.astype('float32')
-
 def split_train_test(data, factors, ratio):
     """
     Splits dataset and factors into explicit train and test sets.
@@ -172,7 +151,7 @@ def main(argv):
     periods = np.array([0, 0, 0, 0.5, 1, 2]) # Should be integer multiples of 0.5
     length = 10 # Hardcoded for now
 
-    data, all_factors = create_data(FLAGS.num_samples, periods, length) # TODO: split this so we dont always create the data
+    data, all_factors = create_data(FLAGS.num_samples, periods, length)
     unique_factors = count_unique_factors(all_factors)
     print(F"Number of unique underlying factors: {unique_factors}")
 

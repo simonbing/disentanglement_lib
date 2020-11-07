@@ -91,6 +91,7 @@ def get_named_subset(name):
         return subset
     elif name == "sin_rand":
         subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_100k_5k.npz'
+        # subset_path = '/Users/Simon/git/disentanglement_lib/disentanglement_lib/data/ground_truth/factors_100k_5k.npz'
         subset = np.load(subset_path)
         subset_full = np.concatenate((subset['factors_train'], subset['factors_test']))
         subset_shape = subset_full.shape
