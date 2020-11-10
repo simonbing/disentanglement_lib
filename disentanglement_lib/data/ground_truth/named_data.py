@@ -97,5 +97,12 @@ def get_named_subset(name):
         subset_shape = subset_full.shape
         subset_full = np.reshape(np.transpose(subset_full, (0,2,1)), (subset_shape[0]*subset_shape[2],subset_shape[1]))
         return subset_full
+    elif name == "sin_rand_100":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_100k_5k_100.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate((subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0,2,1)), (subset_shape[0]*subset_shape[2],subset_shape[1]))
+        return subset_full
     else:
         raise ValueError("Invalid subset name.")
