@@ -8,6 +8,11 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 import numpy as np
+import matplotlib.pyplot as plt
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import (RBF, Matern, RationalQuadratic,
+                                              ExpSineSquared, DotProduct,
+                                              ConstantKernel)
 import dsprites
 
 from absl import app
@@ -17,6 +22,7 @@ FLAGS = flags.FLAGS
 
 flags.DEFINE_integer('seed', 42, 'Random seed')
 flags.DEFINE_bool('save_data', False, 'Save data set and ground truth factors')
+flags.DEFINE_bool('debug', False, 'Debugging plots')
 flags.DEFINE_integer('num_timeseries', 100, 'Total number of time series to generate')
 flags.DEFINE_integer('length', 100, 'Time steps per time series')
 flags.DEFINE_enum('kernel', 'sinusoid', ['sinusoid', 'rbf'], 'Underlying dynamics of factors')
@@ -74,17 +80,40 @@ def sample_factors(inits, periods, length):
 
 
     if FLAGS.kernel == 'sinusoid':
-        for j in range(0,periods.size):
-            if amplitudes[j]:
-                c = np.arccos(1 - 2*inits[:,j]/amplitudes[j])
-            else:
-                c = np.zeros(inits.shape[0])
+        for i in range(inits.shape[0]):
+            for j in range(0,periods.size):
+                if amplitudes[j]:
+                    c = np.arccos(1 - 2*inits[i,j]/amplitudes[j])
+                else:
+                    c = 0
 
-            factors[:,:,j] = np.rint(-0.5*amplitudes[j] * np.cos(
-                           np.tile(periods[j] * xaxis * 2*np.pi/length, (inits.shape[0],1))
-                           + np.transpose(np.tile(c, (length,1)))) + 0.5*amplitudes[j])
+                if periods[j]:
+                    # Randomly sample period from list
+                    period = np.random.choice(periods[np.nonzero(periods)])
+                else:
+                    period = 0
+
+                factors[i,:,j] = np.rint(-0.5*amplitudes[j] *
+                                         np.cos(period * xaxis * 2*np.pi/length + c)
+                                         + 0.5*amplitudes[j])
+        # for j in range(0,periods.size):
+        #     if amplitudes[j]:
+        #         c = np.arccos(1 - 2*inits[:,j]/amplitudes[j])
+        #     else:
+        #         c = np.zeros(inits.shape[0])
+        #
+        #     factors[:,:,j] = np.rint(-0.5*amplitudes[j] * np.cos(
+        #                    np.tile(periods[j] * xaxis * 2*np.pi/length, (inits.shape[0],1))
+        #                    + np.transpose(np.tile(c, (length,1)))) + 0.5*amplitudes[j])
     elif FLAGS.kernel == 'rbf':
-        pass # TODO: implement
+        kernel = RBF(length_scale=1.0) + ConstantKernel(0.0)
+        gp = GaussianProcessRegressor(kernel=kernel)
+        x = np.arange(100)
+        for i in range(inits.shape[0]):
+            for j in range(periods.size): # Using period as proxy for length scale
+                y = gp.sample_y(x[:, np.newaxis], 10)
+                plt.plot(y)
+                plt.show()
     else:
         raise ValueError("Kernel must be one of ['sinusoid', 'rbf']")
 
@@ -148,15 +177,45 @@ def count_unique_factors(factors):
 
     return np.shape(np.unique(f_all_flat))
 
+def plot_factors_series(factors, num_samples, show_factors=[3,4,5]):
+    """
+    Plots time series of sampled factors.
+
+    Args:
+        factors: Input factors array.
+        num_samples: Number of timeseries to plot.
+        show_factors: Which factors to plot per timeseries.
+    """
+    names = [('color', 'black'), ('shape', 'pink'), ('scale', 'yellow'),
+             ('orientation', 'green'), ('x position', 'blue'), ('y position', 'red')]
+
+    N = factors.shape[0]
+    length = factors.shape[1]
+
+    np.random.seed(FLAGS.seed)
+    idxs = np.random.choice(N, size=num_samples, replace=False)
+
+    factors_plot = factors[idxs, ...]
+
+    for i in range(num_samples):
+        for j,factor in enumerate(show_factors):
+            plt.subplot(len(show_factors), 1, j+1)
+            plt.plot(factors_plot[i,:,factor], marker='x', color=names[factor][1])
+            plt.xlabel(names[factor][0])
+        plt.show()
+
 def main(argv):
     del argv  # Unused
 
-    periods = np.array([0, 0, 0, 0.5, 1, 2]) # Should be integer multiples of 0.5
+    periods = np.array([0, 0, 0, 5, 10, 20]) # Should be integer multiples of 0.5
     length = FLAGS.length
 
     data, all_factors = create_data(FLAGS.num_timeseries, periods, length)
     unique_factors = count_unique_factors(all_factors)
     print(F"Number of unique underlying factors: {unique_factors}")
+
+    if FLAGS.debug:
+        plot_factors_series(all_factors, num_samples=3)
 
     if FLAGS.save_data:
         data_train, data_test, factors_train, factors_test = split_train_test(
