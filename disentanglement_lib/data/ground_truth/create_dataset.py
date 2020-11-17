@@ -23,9 +23,13 @@ FLAGS = flags.FLAGS
 flags.DEFINE_integer('seed', 42, 'Random seed')
 flags.DEFINE_bool('save_data', False, 'Save data set and ground truth factors')
 flags.DEFINE_bool('debug', False, 'Debugging plots')
+flags.DEFINE_bool('univ_rescaling', False, 'Rescale all GP sampled factors with same factor, or individually')
+flags.DEFINE_bool('resample_period', False, 'Randomly resample frequencies across dimensions')
 flags.DEFINE_integer('num_timeseries', 100, 'Total number of time series to generate')
+flags.DEFINE_list('periods', [0,0,0,5,10,20], 'Periods for latent dimension time series')
 flags.DEFINE_integer('length', 100, 'Time steps per time series')
 flags.DEFINE_enum('kernel', 'sinusoid', ['sinusoid', 'rbf'], 'Underlying dynamics of factors')
+flags.DEFINE_float('gp_weight', 1.0, 'Weight for dynanic part of GP kernel')
 flags.DEFINE_string('file_name', 'dsprites', 'Name for features')
 flags.DEFINE_string('factors_name', 'factors_dsprites', 'Name for factors')
 
@@ -73,47 +77,69 @@ def sample_factors(inits, periods, length):
     Output:
         factors:[NxM] tensor of latent factors
     """
-
+    N = inits.shape[0]
     factors = np.zeros([inits.shape[0], length, periods.size], dtype=int)
     amplitudes = [0, 2, 5, 39, 31, 31] # Hardcoded for DSprites for now
     xaxis = np.arange(0,length,1)
 
 
     if FLAGS.kernel == 'sinusoid':
-        for i in range(inits.shape[0]):
+        for i in range(N):
             for j in range(0,periods.size):
                 if amplitudes[j]:
                     c = np.arccos(1 - 2*inits[i,j]/amplitudes[j])
                 else:
                     c = 0
 
-                if periods[j]:
-                    # Randomly sample period from list
-                    period = np.random.choice(periods[np.nonzero(periods)])
+                if FLAGS.resample_period:
+                    if periods[j]:
+                        # Randomly sample period from list
+                        period = np.random.choice(periods[np.nonzero(periods)])
+                    else:
+                        period = 0
                 else:
-                    period = 0
+                    period = periods[j]
 
                 factors[i,:,j] = np.rint(-0.5*amplitudes[j] *
                                          np.cos(period * xaxis * 2*np.pi/length + c)
                                          + 0.5*amplitudes[j])
-        # for j in range(0,periods.size):
-        #     if amplitudes[j]:
-        #         c = np.arccos(1 - 2*inits[:,j]/amplitudes[j])
-        #     else:
-        #         c = np.zeros(inits.shape[0])
-        #
-        #     factors[:,:,j] = np.rint(-0.5*amplitudes[j] * np.cos(
-        #                    np.tile(periods[j] * xaxis * 2*np.pi/length, (inits.shape[0],1))
-        #                    + np.transpose(np.tile(c, (length,1)))) + 0.5*amplitudes[j])
+
     elif FLAGS.kernel == 'rbf':
-        kernel = RBF(length_scale=1.0) + ConstantKernel(0.0)
-        gp = GaussianProcessRegressor(kernel=kernel)
-        x = np.arange(100)
-        for i in range(inits.shape[0]):
-            for j in range(periods.size): # Using period as proxy for length scale
-                y = gp.sample_y(x[:, np.newaxis], 10)
-                plt.plot(y)
-                plt.show()
+        for j, period in enumerate(periods): # Using period as proxy for length scale
+            if not amplitudes[j]:
+                kernel = ConstantKernel(0.0)
+            else:
+                if not period:
+                    kernel = ConstantKernel(1.0)
+                else:
+                    kernel = FLAGS.gp_weight * RBF(length_scale=period) + ConstantKernel(5.0)
+            gp = GaussianProcessRegressor(kernel=kernel)
+            y = gp.sample_y(xaxis[:, np.newaxis], N, random_state=np.random.randint(1e6))
+
+            if not period or FLAGS.univ_rescaling: # Rescale all samples the same
+                max_val = np.amax(y)
+                min_val = np.amin(y)
+                diff = max_val - min_val
+                if amplitudes[j]:
+                    c = amplitudes[j] / diff
+                else:
+                    c = 0.0
+                y_rescale = np.rint(c * (y - min_val))
+            else: # Rescale each sample itself
+                max_vals = np.amax(y, axis=0)
+                min_vals = np.amin(y, axis=0)
+                diffs = max_vals - min_vals
+                # if amplitudes[j]:
+                c = amplitudes[j] / diffs
+                # else:
+                # c = np.zeros_like(diffs)
+                c = np.tile(c, (length,1))
+                min_vals = np.tile(min_vals, (length,1))
+                y_rescale = np.rint(c * (y - min_vals))
+
+            factors[:,:,j] = np.transpose(y_rescale)
+            # plt.plot(y_rescale[:,:10])
+            # plt.show()
     else:
         raise ValueError("Kernel must be one of ['sinusoid', 'rbf']")
 
@@ -190,7 +216,6 @@ def plot_factors_series(factors, num_samples, show_factors=[3,4,5]):
              ('orientation', 'green'), ('x position', 'blue'), ('y position', 'red')]
 
     N = factors.shape[0]
-    length = factors.shape[1]
 
     np.random.seed(FLAGS.seed)
     idxs = np.random.choice(N, size=num_samples, replace=False)
@@ -200,14 +225,28 @@ def plot_factors_series(factors, num_samples, show_factors=[3,4,5]):
     for i in range(num_samples):
         for j,factor in enumerate(show_factors):
             plt.subplot(len(show_factors), 1, j+1)
-            plt.plot(factors_plot[i,:,factor], marker='x', color=names[factor][1])
+            plt.plot(factors_plot[i,:10,factor], marker='x', color=names[factor][1])
             plt.xlabel(names[factor][0])
         plt.show()
+
+def count_avg_step_size(factors):
+    """
+    Counts average step size per dimension.
+    """
+    factors_re = np.reshape(factors, (factors.shape[0]*factors.shape[1], factors.shape[2]))
+    diff = abs(np.diff(factors_re, axis=0))
+    mean = np.mean(diff, axis=0)
+    median = np.median(diff, axis=0)
+
+    print(F"Mean difference: {mean}")
+    print(F"Median difference: {median}")
 
 def main(argv):
     del argv  # Unused
 
-    periods = np.array([0, 0, 0, 5, 10, 20]) # Should be integer multiples of 0.5
+    # periods = np.array([0, 0, 0, 5, 10, 20]) # Should be integer multiples of 0.5
+    # periods = np.array([0, 0, 0, 1.0, 0.1, 0.1])
+    periods = np.asarray(FLAGS.periods).astype(float)
     length = FLAGS.length
 
     data, all_factors = create_data(FLAGS.num_timeseries, periods, length)
@@ -215,6 +254,7 @@ def main(argv):
     print(F"Number of unique underlying factors: {unique_factors}")
 
     if FLAGS.debug:
+        count_avg_step_size(all_factors)
         plot_factors_series(all_factors, num_samples=3)
 
     if FLAGS.save_data:
