@@ -106,39 +106,56 @@ def sample_factors(inits, periods, length):
 
     elif FLAGS.kernel == 'rbf':
         for j, period in enumerate(periods): # Using period as proxy for length scale
-            if not amplitudes[j]:
-                kernel = ConstantKernel(0.0)
-            else:
-                if not period:
-                    kernel = ConstantKernel(1.0)
-                else:
-                    kernel = FLAGS.gp_weight * RBF(length_scale=period) + ConstantKernel(5.0)
-            gp = GaussianProcessRegressor(kernel=kernel)
-            y = gp.sample_y(xaxis[:, np.newaxis], N, random_state=np.random.randint(1e6))
-
-            if not period or FLAGS.univ_rescaling: # Rescale all samples the same
-                max_val = np.amax(y)
-                min_val = np.amin(y)
-                diff = max_val - min_val
-                if amplitudes[j]:
-                    c = amplitudes[j] / diff
-                else:
-                    c = 0.0
-                y_rescale = np.rint(c * (y - min_val))
-            else: # Rescale each sample itself
+            if period: # If we actually have dynamics
+                kernel = FLAGS.gp_weight * RBF(length_scale=period) + ConstantKernel(5.0)
+                gp = GaussianProcessRegressor(kernel=kernel)
+                y = gp.sample_y(xaxis[:, np.newaxis], N,
+                                random_state=np.random.randint(1e6))
+                _, y_std = gp.predict([[1]], return_std=True)
+                #######
                 max_vals = np.amax(y, axis=0)
                 min_vals = np.amin(y, axis=0)
                 diffs = max_vals - min_vals
-                # if amplitudes[j]:
-                c = amplitudes[j] / diffs
-                # else:
-                # c = np.zeros_like(diffs)
-                c = np.tile(c, (length,1))
-                min_vals = np.tile(min_vals, (length,1))
-                y_rescale = np.rint(c * (y - min_vals))
 
-            factors[:,:,j] = np.transpose(y_rescale)
-            # plt.plot(y_rescale[:,:10])
+                # plt.plot(y[:,:100])
+                # plt.show()
+
+                # Discard variables outside of std_dev range
+                # y_bound = y[:, np.all(abs(y) <= 1.8 * y_std, axis = 0)]
+
+                if FLAGS.univ_rescaling:  # Rescale all samples the same
+                    max_val = np.amax(y)
+                    min_val = np.amin(y)
+                    diff = max_val - min_val
+                    if amplitudes[j]:
+                        c = amplitudes[j] / diff
+                    else:
+                        c = 0.0
+                    y_rescale = np.rint(c * (y - min_val))
+                else:  # Rescale each sample itself
+                    max_vals = np.amax(y, axis=0)
+                    min_vals = np.amin(y, axis=0)
+                    diffs = max_vals - min_vals
+                    # if amplitudes[j]:
+                    c = amplitudes[j] / diffs
+                    # else:
+                    # c = np.zeros_like(diffs)
+                    c = np.tile(c, (length, 1))
+                    min_vals = np.tile(min_vals, (length, 1))
+                    y_rescale = np.rint(c * (y - min_vals))
+            else: # Static factors
+                if amplitudes[j] == 0:
+                    y_init = np.zeros([N], dtype=int)
+                else:
+                    y_init = np.random.choice(amplitudes[j]+1, N)
+                y_rescale = np.tile(y_init, (length,1))
+
+            factors[:, :, j] = np.transpose(y_rescale)
+
+            # y_rescale = y_rescale[:, np.all(abs(y) <= 1.5 * y_std, axis = 0)]
+
+            # plt.plot(y_rescale[:,:], "black", alpha=0.01)
+            # plt.plot(y_bound[:,:], "black", alpha=0.01)
             # plt.show()
     else:
         raise ValueError("Kernel must be one of ['sinusoid', 'rbf']")
@@ -255,7 +272,7 @@ def main(argv):
 
     if FLAGS.debug:
         count_avg_step_size(all_factors)
-        # plot_factors_series(all_factors, num_samples=3)
+        plot_factors_series(all_factors, num_samples=3)
 
     if FLAGS.save_data:
         data_train, data_test, factors_train, factors_test = split_train_test(
