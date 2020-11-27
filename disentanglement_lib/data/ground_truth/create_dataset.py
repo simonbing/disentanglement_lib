@@ -25,6 +25,7 @@ flags.DEFINE_bool('save_data', False, 'Save data set and ground truth factors')
 flags.DEFINE_bool('debug', False, 'Debugging plots')
 flags.DEFINE_bool('univ_rescaling', False, 'Rescale all GP sampled factors with same factor, or individually')
 flags.DEFINE_bool('resample_period', False, 'Randomly resample frequencies across dimensions')
+flags.DEFINE_integer('rand_static_factors', 0, 'Number of ground truth factors to hold constant per timeseries')
 flags.DEFINE_integer('num_timeseries', 100, 'Total number of time series to generate')
 flags.DEFINE_list('periods', [0,0,0,5,10,20], 'Periods for latent dimension time series')
 flags.DEFINE_integer('length', 100, 'Time steps per time series')
@@ -160,6 +161,17 @@ def sample_factors(inits, periods, length):
     else:
         raise ValueError("Kernel must be one of ['sinusoid', 'rbf']")
 
+    if FLAGS.rand_static_factors:
+        assert FLAGS.rand_static_factors <= periods.size, 'rand_static_factors must be <= num ground truth factors'
+
+        const_idxs = np.asarray([np.random.choice(np.nonzero(periods)[0],
+                                       size=FLAGS.rand_static_factors,
+                                       replace=False) for _ in np.arange(N)])
+        for i in np.arange(const_idxs.shape[0]):
+            for idx in const_idxs[i,:]:
+                const_val = np.random.choice(amplitudes[idx]+1)
+                factors[i,:,idx] = const_val
+
     return factors
 
 
@@ -229,7 +241,7 @@ def plot_factors_series(factors, num_samples, show_factors=[3,4,5]):
         num_samples: Number of timeseries to plot.
         show_factors: Which factors to plot per timeseries.
     """
-    names = [('color', 'black'), ('shape', 'pink'), ('scale', 'yellow'),
+    names = [('color', 'black'), ('shape', 'pink'), ('scale', 'orange'),
              ('orientation', 'green'), ('x position', 'blue'), ('y position', 'red')]
 
     N = factors.shape[0]
@@ -242,7 +254,7 @@ def plot_factors_series(factors, num_samples, show_factors=[3,4,5]):
     for i in range(num_samples):
         for j,factor in enumerate(show_factors):
             plt.subplot(len(show_factors), 1, j+1)
-            plt.plot(factors_plot[i,:10,factor], marker='x', color=names[factor][1])
+            plt.plot(factors_plot[i,:100,factor], marker='x', color=names[factor][1])
             plt.xlabel(names[factor][0])
         plt.show()
 
@@ -272,7 +284,7 @@ def main(argv):
 
     if FLAGS.debug:
         count_avg_step_size(all_factors)
-        plot_factors_series(all_factors, num_samples=3)
+        plot_factors_series(all_factors, num_samples=3, show_factors=[2,3,4,5])
 
     if FLAGS.save_data:
         data_train, data_test, factors_train, factors_test = split_train_test(
