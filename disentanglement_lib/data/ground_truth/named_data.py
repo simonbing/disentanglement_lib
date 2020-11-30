@@ -104,5 +104,95 @@ def get_named_subset(name):
         subset_shape = subset_full.shape
         subset_full = np.reshape(np.transpose(subset_full, (0,2,1)), (subset_shape[0]*subset_shape[2],subset_shape[1]))
         return subset_full
+    elif name == "gp_full_1":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_full_range1.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "gp_part_1":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_part_range1.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "gp_full_2":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_full_range2.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "gp_part_2":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_part_range2.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "gp_full_3":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_full_range3.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "gp_part_3":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_part_range3.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "gp_full_4":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_full_range4.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "gp_part_4":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_part_range4.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "gp_full_const_1":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_full_range_const_1.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "gp_part_const_1":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/dsprites/factors_dsprites_gp_part_range_const_1.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
     else:
         raise ValueError("Invalid subset name.")
