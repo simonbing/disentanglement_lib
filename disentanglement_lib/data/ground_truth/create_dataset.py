@@ -14,12 +14,14 @@ from sklearn.gaussian_process.kernels import (RBF, Matern, RationalQuadratic,
                                               ExpSineSquared, DotProduct,
                                               ConstantKernel)
 import dsprites
+import norb
 
 from absl import app
 from absl import flags
 
 FLAGS = flags.FLAGS
 
+flags.DEFINE_enum('data_type', 'dsprites', ['dsprites','smallnorb','cars3d'], 'Type of data set to create.')
 flags.DEFINE_integer('seed', 42, 'Random seed')
 flags.DEFINE_bool('save_data', False, 'Save data set and ground truth factors')
 flags.DEFINE_bool('debug', False, 'Debugging plots')
@@ -80,7 +82,10 @@ def sample_factors(inits, periods, length):
     """
     N = inits.shape[0]
     factors = np.zeros([inits.shape[0], length, periods.size], dtype=int)
-    amplitudes = [0, 2, 5, 39, 31, 31] # Hardcoded for DSprites for now
+    if FLAGS.data_type == "dsprites":
+        amplitudes = [0, 2, 5, 39, 31, 31] # Hardcoded for DSprites for now
+    elif FLAGS.data_type == "smallnorb":
+        amplitudes = [4, 8, 17, 5]
     xaxis = np.arange(0,length,1)
 
 
@@ -184,7 +189,10 @@ def create_data(N, periods, length):
         periods:  [M] periods of latent factors
         length: [N] length of resulting tensor
     """
-    dsp = dsprites.DSprites()
+    if FLAGS.data_type == "dsprites":
+        dsp = dsprites.DSprites()
+    elif FLAGS.data_type == "smallnorb":
+        snb = norb.SmallNORB()
 
     random_state = np.random.RandomState(FLAGS.seed)
 
@@ -195,8 +203,12 @@ def create_data(N, periods, length):
         dataset = np.zeros([N, length, 64*64])
 
         for i in range(N):
-            data = np.squeeze(dsp.sample_observations_from_factors_no_color(
-                              factors=factors[i,:,:], random_state=random_state))
+            if FLAGS.data_type == "dsprites":
+                data = np.squeeze(dsp.sample_observations_from_factors_no_color(
+                                  factors=factors[i,:,:], random_state=random_state))
+            elif FLAGS.data_type == "smallnorb":
+                data = np.squeeze(snb.sample_observations_from_factors(
+                                  factors=factors[i,:,:], random_state=random_state))
             dataset[i,:,:] = data.reshape(data.shape[0], 64*64)
 
         return dataset.astype('float32'), factors
@@ -227,8 +239,12 @@ def count_unique_factors(factors):
     factors_shape = factors.shape
     f_all = np.reshape(factors,
                        (factors_shape[0] * factors_shape[1], factors_shape[2]))
+    if FLAGS.data_type == "dsprites":
+        amplitudes = (1, 3, 6, 40, 32, 32)
+    elif FLAGS.data_type == "smallnorb":
+        amplitudes = (5, 9, 18, 6)
     f_all_flat = np.ravel_multi_index(np.transpose(f_all.astype(int)),
-                                      (1, 3, 6, 40, 32, 32), order='F')
+                                      amplitudes, order='F')
 
     return np.shape(np.unique(f_all_flat))
 
@@ -241,8 +257,12 @@ def plot_factors_series(factors, num_samples, show_factors=[3,4,5]):
         num_samples: Number of timeseries to plot.
         show_factors: Which factors to plot per timeseries.
     """
-    names = [('color', 'black'), ('shape', 'pink'), ('scale', 'orange'),
-             ('orientation', 'green'), ('x position', 'blue'), ('y position', 'red')]
+    if FLAGS.data_type == "dsprites":
+        names = [('color', 'black'), ('shape', 'pink'), ('scale', 'orange'),
+                 ('orientation', 'green'), ('x position', 'blue'), ('y position', 'red')]
+    elif FLAGS.data_type == "smallnorb":
+        names = [('category', 'black'), ('elevation', 'orange'),
+                 ('azimuth', 'green'), ('lighting', 'blue')]
 
     N = factors.shape[0]
 
@@ -254,7 +274,7 @@ def plot_factors_series(factors, num_samples, show_factors=[3,4,5]):
     for i in range(num_samples):
         for j,factor in enumerate(show_factors):
             plt.subplot(len(show_factors), 1, j+1)
-            plt.plot(factors_plot[i,:100,factor], marker='x', color=names[factor][1])
+            plt.plot(factors_plot[i,:,factor], marker='x', color=names[factor][1])
             plt.xlabel(names[factor][0])
         plt.show()
 
@@ -284,7 +304,7 @@ def main(argv):
 
     if FLAGS.debug:
         count_avg_step_size(all_factors)
-        plot_factors_series(all_factors, num_samples=3, show_factors=[2,3,4,5])
+        plot_factors_series(all_factors, num_samples=3, show_factors=[0,1,2,3])
 
     if FLAGS.save_data:
         data_train, data_test, factors_train, factors_test = split_train_test(
