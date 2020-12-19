@@ -15,13 +15,15 @@ from sklearn.gaussian_process.kernels import (RBF, Matern, RationalQuadratic,
                                               ConstantKernel)
 import dsprites
 import norb
+import cars3d
+import shapes3d
 
 from absl import app
 from absl import flags
 
 FLAGS = flags.FLAGS
 
-flags.DEFINE_enum('data_type', 'dsprites', ['dsprites','smallnorb','cars3d'], 'Type of data set to create.')
+flags.DEFINE_enum('data_type', 'dsprites', ['dsprites','smallnorb','cars3d','shapes3d'], 'Type of data set to create.')
 flags.DEFINE_integer('seed', 42, 'Random seed')
 flags.DEFINE_bool('save_data', False, 'Save data set and ground truth factors')
 flags.DEFINE_bool('debug', False, 'Debugging plots')
@@ -86,6 +88,10 @@ def sample_factors(inits, periods, length):
         amplitudes = [0, 2, 5, 39, 31, 31] # Hardcoded for DSprites for now
     elif FLAGS.data_type == "smallnorb":
         amplitudes = [4, 8, 17, 5]
+    elif FLAGS.data_type == "cars3d":
+        amplitudes = [3, 23, 182]
+    elif FLAGS.data_type == "shapes3d":
+        amplitudes = [9, 9, 9, 7, 3, 14]
     xaxis = np.arange(0,length,1)
 
 
@@ -193,23 +199,39 @@ def create_data(N, periods, length):
         dsp = dsprites.DSprites()
     elif FLAGS.data_type == "smallnorb":
         snb = norb.SmallNORB()
+    elif FLAGS.data_type == "cars3d":
+        cars = cars3d.Cars3D()
+    elif FLAGS.data_type == "shapes3d":
+        shp = shapes3d.Shapes3D()
 
     random_state = np.random.RandomState(FLAGS.seed)
 
     inits = sample_inits(N)
     factors = sample_factors(inits, periods, length)
-
     if FLAGS.save_data: # Only allocate storage for data if we actually want to save it
-        dataset = np.zeros([N, length, 64*64])
+        if FLAGS.data_type in ["dsprites", "smallnorb"]:
+            dataset = np.zeros([N, length, 64*64])
+        elif FLAGS.data_type in ["cars3d", "shapes3d"]:
+            dataset = np.zeros([N, length, 64*64*3])
 
         for i in range(N):
             if FLAGS.data_type == "dsprites":
                 data = np.squeeze(dsp.sample_observations_from_factors_no_color(
                                   factors=factors[i,:,:], random_state=random_state))
+                data_reshape = data.reshape(data.shape[0], 64 * 64)
             elif FLAGS.data_type == "smallnorb":
                 data = np.squeeze(snb.sample_observations_from_factors(
                                   factors=factors[i,:,:], random_state=random_state))
-            dataset[i,:,:] = data.reshape(data.shape[0], 64*64)
+                data_reshape = data.reshape(data.shape[0], 64 * 64)
+            elif FLAGS.data_type == "cars3d":
+                data = cars.sample_observations_from_factors(factors=factors[i,:,:],
+                                                             random_state=random_state)
+                data_reshape = data.reshape(data.shape[0], 64 * 64 * 3)
+            elif FLAGS.data_type == "shapes3d":
+                data = shp.sample_observations_from_factors(factors=factors[i,:,:],
+                                                            random_state=random_state)
+                data_reshape = data.reshape(data.shape[0], 64 * 64 * 3)
+            dataset[i,:,:] = data_reshape
 
         return dataset.astype('float32'), factors
 
@@ -243,6 +265,10 @@ def count_unique_factors(factors):
         amplitudes = (1, 3, 6, 40, 32, 32)
     elif FLAGS.data_type == "smallnorb":
         amplitudes = (5, 9, 18, 6)
+    elif FLAGS.data_type == "cars3d":
+        amplitudes = (4, 24, 183)
+    elif FLAGS.data_type == "shapes3d":
+        amplitudes = (10, 10, 10, 8, 4, 15)
     f_all_flat = np.ravel_multi_index(np.transpose(f_all.astype(int)),
                                       amplitudes, order='F')
 
@@ -263,6 +289,11 @@ def plot_factors_series(factors, num_samples, show_factors=[3,4,5]):
     elif FLAGS.data_type == "smallnorb":
         names = [('category', 'black'), ('elevation', 'orange'),
                  ('azimuth', 'green'), ('lighting', 'blue')]
+    elif FLAGS.data_type == "cars3d":
+        names = [('elevation', 'orange'), ('azimuth', 'green'), ('object type', 'blue')]
+    elif FLAGS.data_type == "shapes3d":
+        names = [('floor color', 'black'), ('wall color', 'pink'), ('object color', 'orange'),
+                 ('object size', 'green'), ('object type', 'blue'), ('azimuth', 'red')]
 
     N = factors.shape[0]
 
@@ -304,7 +335,7 @@ def main(argv):
 
     if FLAGS.debug:
         count_avg_step_size(all_factors)
-        plot_factors_series(all_factors, num_samples=3, show_factors=[0,1,2,3])
+        plot_factors_series(all_factors, num_samples=3, show_factors=[0,1,2])
 
     if FLAGS.save_data:
         data_train, data_test, factors_train, factors_test = split_train_test(
