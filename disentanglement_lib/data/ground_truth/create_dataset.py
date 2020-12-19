@@ -20,6 +20,7 @@ import shapes3d
 
 from absl import app
 from absl import flags
+import time
 
 FLAGS = flags.FLAGS
 
@@ -214,6 +215,7 @@ def create_data(N, periods, length):
         elif FLAGS.data_type in ["cars3d", "shapes3d"]:
             dataset = np.zeros([N, length, 64*64*3])
 
+        start_time = time.time()
         for i in range(N):
             if FLAGS.data_type == "dsprites":
                 data = np.squeeze(dsp.sample_observations_from_factors_no_color(
@@ -228,6 +230,8 @@ def create_data(N, periods, length):
                                                              random_state=random_state)
                 data_reshape = data.reshape(data.shape[0], 64 * 64 * 3)
             elif FLAGS.data_type == "shapes3d":
+                if not(i % 1000):
+                    print(F'At step {N}, after {(time.time() - start_time)//60} minutes.')
                 data = shp.sample_observations_from_factors(factors=factors[i,:,:],
                                                             random_state=random_state)
                 data_reshape = data.reshape(data.shape[0], 64 * 64 * 3)
