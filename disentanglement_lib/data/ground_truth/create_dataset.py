@@ -335,7 +335,7 @@ def main(argv):
 
     if FLAGS.debug:
         count_avg_step_size(all_factors)
-        plot_factors_series(all_factors, num_samples=3, show_factors=[0,1,2])
+        plot_factors_series(all_factors, num_samples=3, show_factors=[0,1,2,3,5])
 
     if FLAGS.save_data:
         data_train, data_test, factors_train, factors_test = split_train_test(

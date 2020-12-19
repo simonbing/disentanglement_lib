@@ -194,5 +194,41 @@ def get_named_subset(name):
         subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
         subset_shape[0] * subset_shape[2], subset_shape[1]))
         return subset_full
+    elif name == "norb_full1":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/norb/factors_norb_full1.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "cars_full1":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/cars3d/factors_cars_full1.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "shapes_full1":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/shapes3d/factors_shapes_full1.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
+    elif name == "shapes_full2":
+        subset_path = '/cluster/work/grlab/projects/projects2020_disentangled_gpvae/data/shapes3d/factors_shapes_full2.npz'
+        subset = np.load(subset_path)
+        subset_full = np.concatenate(
+            (subset['factors_train'], subset['factors_test']))
+        subset_shape = subset_full.shape
+        subset_full = np.reshape(np.transpose(subset_full, (0, 2, 1)), (
+        subset_shape[0] * subset_shape[2], subset_shape[1]))
+        return subset_full
     else:
         raise ValueError("Invalid subset name.")
