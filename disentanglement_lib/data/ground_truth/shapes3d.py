@@ -136,4 +136,4 @@ class Shapes3D(ground_truth_data.GroundTruthData):
     # ims = np.stack(ims, axis=0)
     # ims = ims / 255.  # normalise values to range [0,1]
     # ims = ims.astype(np.float32)
-    return ims.reshape([factors.shape[0], 64, 64, 3])
+    return ims
