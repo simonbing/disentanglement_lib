@@ -92,6 +92,36 @@ class Shapes3D(ground_truth_data.GroundTruthData):
     """Sample a batch of factors Y."""
     return self.state_space.sample_latent_factors(num, random_state)
 
+  def sample_factor_pairs(self, num, random_state):
+    """Sample paired observations for weakly supervised models"""
+    if self.subset is None:
+        k = 2 # Hardcoded TODO change this
+        # Sample first factors and from those, first sample
+        factors1, sample1 = self.sample(num, random_state)
+        # Sample k, if k is random
+        if k is None:
+          k = np.random.choice(np.arange(1, len(self.factors_num_values)+1))
+        # Sample k indices
+        s = np.random.choice(np.arange(len(self.factors_num_values)), k, replace=False)
+        # Resample factors at indices s
+        factors2 = np.copy(factors1)
+        for idx in s:
+          new_factor = np.random.choice(np.arange(self.factors_num_values[idx]))
+          factors2[0, idx] = new_factor
+        # Resample with new factors
+        sample2 = self.sample_observations_from_factors(factors2, random_state)
+    else:
+        init_idx = np.random.randint(0, self.subset.shape[0], 1)
+        # Make sure that first index is even. Needed to ensure correct pairing.
+        if init_idx % 2:
+            init_idx = init_idx-1
+        idxs = np.arange(init_idx, init_idx + num * 2)
+        idxs_wrap = [np.arange(0, self.subset.shape[0])[idx % self.subset.shape[0]] for idx in idxs]
+        factors = self.subset[idxs_wrap]
+        factors1 = factors[0::2, :]
+        factors2 = factors[1::2, :]
+    return factors1, factors2
+
   def sample_observations_from_factors(self, factors, random_state):
     all_factors = self.state_space.sample_all_factors(factors, random_state)
     indices = np.array(np.dot(all_factors, self.factor_bases), dtype=np.int64)
