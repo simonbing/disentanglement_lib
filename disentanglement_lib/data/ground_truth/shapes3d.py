@@ -33,7 +33,7 @@ import h5py
 # )
 SHAPES3D_PATH = os.path.join(
     os.environ.get("DISENTANGLEMENT_LIB_DATA", "."), "3dshapes",
-    "3dshapes.h5"
+    "3dshapes.npz"
 )
 
 
@@ -53,10 +53,12 @@ class Shapes3D(ground_truth_data.GroundTruthData):
   """
 
   def __init__(self):
-    with tf.gfile.GFile(SHAPES3D_PATH, "rb") as f:
-      # Data was saved originally using python2, so we need to set the encoding.
-      # data = np.load(f, encoding="latin1")
-      data = h5py.File(f, 'r')
+    # with tf.gfile.GFile(SHAPES3D_PATH, "rb") as f:
+    #   # Data was saved originally using python2, so we need to set the encoding.
+    #   # data = np.load(f, encoding="latin1")
+    #   data = h5py.File(f, 'r')
+
+    data = np.load(SHAPES3D_PATH)
 
     images = data["images"]
     labels = data["labels"]
@@ -65,7 +67,7 @@ class Shapes3D(ground_truth_data.GroundTruthData):
     # self.images = (
     #     images.reshape([n_samples, 64, 64, 3]).astype(np.float32) / 255.)
     # features = labels.reshape([n_samples, 6])
-    self.images = images
+    self.images = images.astype(np.float32) / 255.
     features = labels
     self.factor_sizes = [10, 10, 10, 8, 4, 15]
     self.latent_factor_indices = list(range(6))
@@ -125,12 +127,13 @@ class Shapes3D(ground_truth_data.GroundTruthData):
   def sample_observations_from_factors(self, factors, random_state):
     all_factors = self.state_space.sample_all_factors(factors, random_state)
     indices = np.array(np.dot(all_factors, self.factor_bases), dtype=np.int64)
-    ims = []
-    for idx in indices:
-      im = self.images[idx]
-      im = np.asarray(im)
-      ims.append(im)
-    ims = np.stack(ims, axis=0)
-    ims = ims / 255.  # normalise values to range [0,1]
-    ims = ims.astype(np.float32)
+    ims = self.images[indices,:,:,:] # indices need to be in increasing order
+    # ims = []
+    # for idx in indices:
+    #   im = self.images[idx]
+    #   im = np.asarray(im)
+    #   ims.append(im)
+    # ims = np.stack(ims, axis=0)
+    # ims = ims / 255.  # normalise values to range [0,1]
+    # ims = ims.astype(np.float32)
     return ims.reshape([factors.shape[0], 64, 64, 3])
