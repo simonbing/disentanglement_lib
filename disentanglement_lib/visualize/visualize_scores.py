@@ -65,7 +65,7 @@ def heat_square(matrix, output_dir, name, xlabel, ylabel, max_val=None,
   # by the colorbar legend.
   size_scale = ((((ax.get_position().xmax - ax.get_position().xmin) *
                   fig.get_size_inches()[0] * fig.get_dpi() - 40) * 14/15*0.8) /
-                (matrix.shape[0]))**2
+                (max(matrix.shape)))**2
   plot_matrix_squares(matrix, max_val, palette, size_scale, ax)
   plt.xticks(range(matrix.shape[0]))
   if factor_names is not None:
