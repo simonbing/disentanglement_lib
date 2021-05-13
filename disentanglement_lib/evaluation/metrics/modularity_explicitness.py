@@ -124,3 +124,26 @@ def modularity(mutual_information):
   index = (max_squared_mi == 0.)
   modularity_score[index] = 0.
   return np.mean(modularity_score)
+
+def _compute_modularity_explicitness(mus_train, ys_train, mus_test, ys_test):
+    scores = {}
+    discretized_mus = utils.make_discretizer(mus_train)
+    mutual_information = utils.discrete_mutual_info(discretized_mus, ys_train)
+    # Mutual information should have shape [num_codes, num_factors].
+    assert mutual_information.shape[0] == mus_train.shape[0]
+    assert mutual_information.shape[1] == ys_train.shape[0]
+    scores["modularity_score"] = modularity(mutual_information)
+    explicitness_score_train = np.zeros([ys_train.shape[0], 1])
+    explicitness_score_test = np.zeros([ys_test.shape[0], 1])
+    mus_train_norm, mean_mus, stddev_mus = utils.normalize_data(mus_train)
+    mus_test_norm, _, _ = utils.normalize_data(mus_test, mean_mus, stddev_mus)
+    for i in range(ys_train.shape[0]):
+        try:
+            explicitness_score_train[i], explicitness_score_test[i] = \
+                explicitness_per_factor(mus_train_norm, ys_train[i, :],
+                                        mus_test_norm, ys_test[i, :])
+        except IndexError: # local debugging
+            pass
+    scores["explicitness_score_train"] = np.mean(explicitness_score_train)
+    scores["explicitness_score_test"] = np.mean(explicitness_score_test)
+    return scores
